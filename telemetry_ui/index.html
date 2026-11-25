@@ -64,7 +64,7 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.75rem;
     }
     @media (max-width: 1200px) {
@@ -362,24 +362,55 @@
       return p + q + r + s + t;
     }
 
+    /** Beat position carried forward in time, so a heart rate change does not jump the trace. */
+    const phaseAnchors = new Map();
+
+    function updatePhaseAnchors(patients) {
+      const nowSec = performance.now() / 1000;
+      for (const p of patients) {
+        const bps = Math.max(0, p.vitals.heartRate) / 60;
+        const list = phaseAnchors.get(p.id);
+        if (!list) {
+          phaseAnchors.set(p.id, [{ t0: nowSec, ph0: 0, bps: bps }]);
+          continue;
+        }
+        const last = list[list.length - 1];
+        if (Math.abs(bps - last.bps) > 0.002) {
+          const ph0 = last.ph0 + (nowSec - last.t0) * last.bps;
+          list.push({ t0: nowSec, ph0: ph0, bps: bps });
+          if (list.length > 300) list.shift();
+        }
+      }
+    }
+
+    function phaseAt(id, tSec) {
+      const list = phaseAnchors.get(id);
+      if (!list || !list.length) return 0;
+      let a = list[0];
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].t0 <= tSec) { a = list[i]; break; }
+      }
+      return a.ph0 + (tSec - a.t0) * a.bps;
+    }
+
     /** Deterministic pseudo-random value in [0, 1) for beat index k. */
     function hash01(k, seed) {
       const x = Math.sin(k * 12.9898 + seed * 78.233) * 43758.5453;
       return x - Math.floor(x);
     }
 
-    /** Beat start times jitter around a fixed mean so R-R intervals vary, as in AFib. */
-    function afBeatStart(k, meanRR, seed) {
-      return k * meanRR + (hash01(k, seed) - 0.5) * 0.7 * meanRR;
+    /** Beat start positions (in cycles) jitter around whole cycles so R-R intervals vary, as in AFib. */
+    function afBeatStart(k, seed) {
+      return k + (hash01(k, seed) - 0.5) * 0.7;
     }
 
-    /** Find the beat containing tSec and return its phase (0 to 1) within that beat. */
-    function afBeatAt(tSec, meanRR, seed) {
-      let k = Math.floor(tSec / meanRR) - 2;
-      while (afBeatStart(k + 1, meanRR, seed) <= tSec) k++;
-      const start = afBeatStart(k, meanRR, seed);
-      const end = afBeatStart(k + 1, meanRR, seed);
-      return { k: k, phase: (tSec - start) / (end - start) };
+    /** Find the beat containing cycle position P and return its phase (0 to 1) within that beat. */
+    function afBeatAt(P, seed) {
+      let k = Math.floor(P) - 2;
+      while (afBeatStart(k + 1, seed) <= P) k++;
+      const start = afBeatStart(k, seed);
+      const end = afBeatStart(k + 1, seed);
+      return { k: k, phase: (P - start) / (end - start) };
     }
 
     /** Fine fibrillatory baseline (about 4 to 7 per second), in place of P waves. */
@@ -430,18 +461,17 @@
 
       if (mode === "afib") {
         // Irregularly irregular beats, no P waves, fine fibrillatory baseline.
-        const meanRR = 1 / bps;
-        const b = afBeatAt(tSec, meanRR, seed);
+        const b = afBeatAt(phaseAt(p.id, tSec), seed);
         return beatShape(b.phase, { withP: false }) * 0.9 + afFibrillatoryWave(tSec, seed);
       }
 
       if (mode === "pvc") {
-        const beatN = Math.floor(tSec * bps + seed * 0.01);
-        const wide = beatN % 5 === 3;
-        return beatShape(fract(tSec * bps), { wide: wide });
+        const P = phaseAt(p.id, tSec);
+        const wide = Math.floor(P) % 5 === 3;
+        return beatShape(fract(P), { wide: wide });
       }
 
-      return beatShape(fract(tSec * bps));
+      return beatShape(fract(phaseAt(p.id, tSec)));
     }
 
     function drawEcgStrip(canvas, p) {
@@ -809,6 +839,7 @@
         const data = await r.json();
         rhythmOptionList = data.rhythmOptions || [];
         latestById = Object.fromEntries(data.patients.map((x) => [x.id, x]));
+        updatePhaseAnchors(data.patients);
         err.classList.remove("show");
         document.getElementById("step").textContent = data.timeStep;
         document.getElementById("chip-crit").textContent = "Critical beds: " + data.stats.patientsCritical;
