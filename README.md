@@ -25,7 +25,7 @@ This project is an engineering sandbox for those problems. It is not intended to
 - Generates changing heart rate, blood pressure, oxygen saturation, respiratory rate, and temperature
 - Simulates cardiac rhythms including normal sinus rhythm, sinus tachycardia, sinus bradycardia, and atrial fibrillation in the current restricted profile
 - Includes technical artifact states such as loose lead, electrical interference, muscle tremor, baseline wander, and motion artifact
-- Assigns simple **OK / warning / critical** triage states based on rhythm and vital-sign conditions
+- Assigns simple **OK / warning / critical** triage states. The built-in triage reads the simulator's hidden rhythm and artifact labels, so it is not a fair baseline (see Evaluation).
 - Maintains short-term HR and SpO₂ trend history
 - Serves live patient data through a **Flask JSON API**
 - Provides a responsive dark telemetry dashboard for desktop and smaller displays
@@ -57,6 +57,15 @@ This project is an engineering sandbox for those problems. It is not intended to
 │       alerts • trends        │
 └──────────────────────────────┘
 ```
+
+## Running the tests
+
+```bash
+pip install -r requirements.txt pytest
+python -m pytest -q tests
+```
+
+The tests cover the triage rules, the human review store, and simulator reproducibility.
 
 ## Evaluation (simulated data)
 
