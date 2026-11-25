@@ -1,3 +1,5 @@
+> **Demo version.** This browser-only React prototype runs without the Flask backend in the repo root. Its HeartSenseAI risk scores are simulated, not produced by a trained model, and its data is stored in the browser only.
+
 # Cardiac Monitoring         🩺
 
 **Cardiac Monitoring** is an advanced cardiac monitoring simulator designed for clinical education and demonstration. It features a sleek, intuitive, and responsive interface for real-time patient assessment and predictive analysis of cardiac decompensation, running entirely in your browser with no build process.
