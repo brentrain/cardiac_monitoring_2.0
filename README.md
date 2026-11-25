@@ -58,6 +58,16 @@ This project is an engineering sandbox for those problems. It is not intended to
 └──────────────────────────────┘
 ```
 
+## Evaluation (simulated data)
+
+`evaluation/compare_alarm_methods.py` compares two alarm methods on simulated ICU vitals. Ground truth comes from the simulator's own state, and neither method sees those labels.
+
+In the current results, the logistic regression model finds about 98% of real events, compared with about 34% for a threshold rule. It also raises more false alarm episodes (about 10.6 vs 4.4 per patient-hour). It does not yet reduce false alarm burden. Full results and caveats are in [`evaluation/RESULTS.md`](evaluation/RESULTS.md).
+
+Note: the server's built-in triage reads the simulator's hidden rhythm and artifact labels, so it is not a fair baseline for comparison.
+
+This is a simulation for software research and education. It is not a medical device and has not been clinically validated.
+
 ## Project structure
 
 ```text
