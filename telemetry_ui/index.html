@@ -67,6 +67,18 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.4rem;
     }
+    /* Wide screens: all 8 beds on one screen, 4 across and 2 down, no scrolling */
+    @media (min-width: 1200px) {
+      body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+      main { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: none; width: 100%; }
+      .grid {
+        flex: 1;
+        min-height: 0;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+      }
+      .card { min-height: 0; overflow: hidden; }
+    }
     @media (max-width: 1200px) {
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
