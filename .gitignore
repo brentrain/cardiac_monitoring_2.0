@@ -7,3 +7,6 @@ desktop.ini
 # Local simulator / report output
 icu_telemetry_log_*.txt
 icu_telemetry_clinician_report_*.txt
+
+# Downloaded datasets (not stored in Git)
+data/
