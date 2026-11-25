@@ -344,6 +344,51 @@
       return interpBeat(u) * 1.15;
     }
 
+    /** Smooth beat built from Gaussian P, Q, R, S, and T components (phi in one cycle, 0 to 1). */
+    function gaussPulse(x, mu, sigma) {
+      const d = (x - mu) / sigma;
+      return Math.exp(-d * d);
+    }
+
+    function beatShape(phi, opts) {
+      const ph = fract(phi);
+      const withP = !(opts && opts.withP === false);
+      const wide = !!(opts && opts.wide);
+      const p = withP ? 0.12 * gaussPulse(ph, 0.09, 0.022) : 0;
+      const q = -0.12 * gaussPulse(ph, 0.175, 0.008);
+      const r = (wide ? 0.95 : 1.0) * gaussPulse(ph, 0.2, wide ? 0.022 : 0.012);
+      const s = -0.22 * gaussPulse(ph, 0.225, 0.01);
+      const t = 0.26 * gaussPulse(ph, 0.38, 0.055);
+      return p + q + r + s + t;
+    }
+
+    /** Deterministic pseudo-random value in [0, 1) for beat index k. */
+    function hash01(k, seed) {
+      const x = Math.sin(k * 12.9898 + seed * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    /** Beat start times jitter around a fixed mean so R-R intervals vary, as in AFib. */
+    function afBeatStart(k, meanRR, seed) {
+      return k * meanRR + (hash01(k, seed) - 0.5) * 0.7 * meanRR;
+    }
+
+    /** Find the beat containing tSec and return its phase (0 to 1) within that beat. */
+    function afBeatAt(tSec, meanRR, seed) {
+      let k = Math.floor(tSec / meanRR) - 2;
+      while (afBeatStart(k + 1, meanRR, seed) <= tSec) k++;
+      const start = afBeatStart(k, meanRR, seed);
+      const end = afBeatStart(k + 1, meanRR, seed);
+      return { k: k, phase: (tSec - start) / (end - start) };
+    }
+
+    /** Fine fibrillatory baseline (about 4 to 7 per second), in place of P waves. */
+    function afFibrillatoryWave(tSec, seed) {
+      return 0.035 * Math.sin(2 * Math.PI * 5.3 * tSec + seed) +
+             0.025 * Math.sin(2 * Math.PI * 6.9 * tSec + seed * 1.3) +
+             0.012 * noise1(tSec * 9, seed);
+    }
+
     function rhythmMode(name) {
       const map = {
         "Normal Sinus Rhythm": "nsr",
@@ -384,25 +429,19 @@
       }
 
       if (mode === "afib") {
-        const wiggle =
-          0.06 * Math.sin(tSec * 22 + seed) +
-          0.045 * Math.sin(tSec * 31 + seed * 0.7);
-        const irr = 1 + 0.16 * Math.sin(tSec * 2.1 + seed) * Math.sin(tSec * 3.7 + seed);
-        const ph = fract(tSec * bps * irr + 0.08 * Math.sin(tSec * 5));
-        let v = 0;
-        if (ph < 0.11) v = wiggle;
-        else v = interpBeat((ph - 0.11) / 0.89 * 0.92) + wiggle * 0.35;
-        return v;
+        // Irregularly irregular beats, no P waves, fine fibrillatory baseline.
+        const meanRR = 1 / bps;
+        const b = afBeatAt(tSec, meanRR, seed);
+        return beatShape(b.phase, { withP: false }) * 0.9 + afFibrillatoryWave(tSec, seed);
       }
 
       if (mode === "pvc") {
         const beatN = Math.floor(tSec * bps + seed * 0.01);
         const wide = beatN % 5 === 3;
-        const ph = fract(tSec * bps);
-        return wide ? interpBeatWide(ph * 0.92) : interpBeat(ph);
+        return beatShape(fract(tSec * bps), { wide: wide });
       }
 
-      return interpBeat(tSec * bps);
+      return beatShape(fract(tSec * bps));
     }
 
     function drawEcgStrip(canvas, p) {
